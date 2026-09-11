@@ -190,6 +190,23 @@ static const u32 rotation_v2_formats[] = {
 	/* TODO add formats after validation */
 };
 
+static const u32 rotation_v201_formats[] = {
+	DRM_FORMAT_NV12,
+	DRM_FORMAT_P010,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_ABGR8888,
+	DRM_FORMAT_RGBA8888,
+	DRM_FORMAT_BGRA8888,
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_RGBX8888,
+	DRM_FORMAT_BGRX8888,
+	DRM_FORMAT_ARGB2101010,
+	DRM_FORMAT_ABGR2101010,
+	DRM_FORMAT_XRGB2101010,
+	DRM_FORMAT_XBGR2101010,
+};
+
 static const u32 wb2_formats_rgb_yuv[] = {
 	DRM_FORMAT_RGB565,
 	DRM_FORMAT_BGR565,
@@ -319,6 +336,12 @@ static const struct dpu_rotation_cfg dpu_rot_sc7280_cfg_v2 = {
 	.rot_format_list = rotation_v2_formats,
 };
 
+static const struct dpu_rotation_cfg dpu_rot_sm4450_cfg_v201 = {
+	.rot_maxheight = 1200,
+	.rot_num_formats = ARRAY_SIZE(rotation_v201_formats),
+	.rot_format_list = rotation_v201_formats,
+};
+
 static const struct dpu_sspp_sub_blks dpu_vig_sblk_qseed2 =
 				_VIG_SBLK_QSEED2();
 
@@ -343,6 +366,10 @@ static const struct dpu_sspp_sub_blks dpu_vig_sblk_qseed3_3_0 =
 static const struct dpu_sspp_sub_blks dpu_vig_sblk_qseed3_3_0_rot_v2 =
 			_VIG_SBLK_ROT(SSPP_SCALER_VER(3, 0),
 				      &dpu_rot_sc7280_cfg_v2);
+
+static const struct dpu_sspp_sub_blks dpu_vig_sblk_qseed3_3_1_rot_v201 =
+			_VIG_SBLK_ROT(SSPP_SCALER_VER(3, 1),
+				      &dpu_rot_sm4450_cfg_v201);
 
 static const struct dpu_sspp_sub_blks dpu_vig_sblk_qseed3_3_1 =
 				_VIG_SBLK(SSPP_SCALER_VER(3, 1));
@@ -389,6 +416,13 @@ static const struct dpu_lm_sub_blks sc7180_lm_sblk = {
 	.maxblendstages = 7, /* excluding base layer */
 	.blendstage_base = { /* offsets relative to mixer base */
 		0x20, 0x38, 0x50, 0x68, 0x80, 0x98, 0xb0
+	},
+};
+
+static const struct dpu_lm_sub_blks sm4450_lm_sblk = {
+	.maxblendstages = 5, /* excluding base layer */
+	.blendstage_base = { /* offsets relative to mixer base */
+		0x20, 0x38, 0x50, 0x68, 0x80
 	},
 };
 
@@ -752,6 +786,10 @@ static const struct dpu_qos_lut_entry sc7180_qos_nrt[] = {
 	{.fl = 0, .lut = 0x0},
 };
 
+static const struct dpu_qos_lut_entry sm4450_qos_linear_macrotile[] = {
+	{.fl = 0, .lut = 0x0122334445566777},
+};
+
 /*************************************************************
  * Hardware catalog
  *************************************************************/
@@ -787,6 +825,7 @@ static const struct dpu_qos_lut_entry sc7180_qos_nrt[] = {
 #include "catalog/dpu_8_0_sc8280xp.h"
 #include "catalog/dpu_8_1_sm8450.h"
 #include "catalog/dpu_8_4_sa8775p.h"
+#include "catalog/dpu_8_6_sm4450.h"
 
 #include "catalog/dpu_9_0_sm8550.h"
 #include "catalog/dpu_9_1_sar2130p.h"
