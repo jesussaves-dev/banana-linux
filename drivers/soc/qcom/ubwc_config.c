@@ -133,6 +133,16 @@ static const struct qcom_ubwc_cfg_data sdm845_data = {
 	.highest_bank_bit = 15,
 };
 
+static const struct qcom_ubwc_cfg_data sm4450_data = {
+	.ubwc_enc_version = UBWC_2_0,
+	.ubwc_dec_version = UBWC_2_0,
+	.ubwc_swizzle = UBWC_SWIZZLE_ENABLE_LVL2 |
+			UBWC_SWIZZLE_ENABLE_LVL3,
+	.ubwc_bank_spread = true,
+	/* LPDDR4X */
+	.highest_bank_bit = 14,
+};
+
 static const struct qcom_ubwc_cfg_data sm6115_data = {
 	.ubwc_enc_version = UBWC_1_0,
 	.ubwc_dec_version = UBWC_2_0,
@@ -279,6 +289,7 @@ static const struct of_device_id qcom_ubwc_configs[] __maybe_unused = {
 	{ .compatible = "qcom,sdm670", .data = &sdm670_data, },
 	{ .compatible = "qcom,sdm845", .data = &sdm845_data, },
 	{ .compatible = "qcom,sm4250", .data = &sm6115_data, },
+	{ .compatible = "qcom,sm4450", .data = &sm4450_data, },
 	{ .compatible = "qcom,sm6115", .data = &sm6115_data, },
 	{ .compatible = "qcom,sm6125", .data = &sm6125_data, },
 	{ .compatible = "qcom,sm6150", .data = &sm6150_data, },
