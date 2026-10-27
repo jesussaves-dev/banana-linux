@@ -26,10 +26,14 @@
  *		and mode of LDO, SMPS, and BOB type PMIC regulators.
  * @XOB:	RPMh XOB accelerator which supports voting on the enable state
  *		of PMIC regulators.
+ * @PBS:	RPMh PBS accelerator which supports voting on the enable state
+ *		of PBS trigger resources. The resource is a
+ *		single enable register at offset 0.
  */
 enum rpmh_regulator_type {
 	VRM,
 	XOB,
+	PBS,
 };
 
 /**
@@ -62,6 +66,7 @@ static const struct resource_name_formats vreg_rsc_name_lookup[NUM_REGULATOR_TYP
 
 #define RPMH_REGULATOR_REG_VRM_VOLTAGE		0x0
 #define RPMH_REGULATOR_REG_ENABLE		0x4
+#define RPMH_REGULATOR_REG_PBS_ENABLE		0x0
 #define RPMH_REGULATOR_REG_VRM_MODE		0x8
 
 #define PMIC4_LDO_MODE_RETENTION		4
@@ -183,6 +188,7 @@ struct rpmh_vreg_init_data {
 	int				index;
 	const char			*supply_name;
 	const struct rpmh_vreg_hw_data	*hw_data;
+	const char			*resource_name;
 };
 
 /**
@@ -265,7 +271,8 @@ static int rpmh_regulator_set_enable_state(struct regulator_dev *rdev,
 {
 	struct rpmh_vreg *vreg = rdev_get_drvdata(rdev);
 	struct tcs_cmd cmd = {
-		.addr = vreg->addr + RPMH_REGULATOR_REG_ENABLE,
+		.addr = vreg->addr + (vreg->hw_data->regulator_type == PBS ?
+			RPMH_REGULATOR_REG_PBS_ENABLE : RPMH_REGULATOR_REG_ENABLE),
 		.data = enable,
 	};
 	int ret;
@@ -468,7 +475,10 @@ static int rpmh_regulator_init_vreg(struct rpmh_vreg *vreg, struct device *dev,
 		return -EINVAL;
 	}
 
-	if (strnlen(pmic_id, PMIC_ID_LEN) > 1 && strnstr(pmic_id, "_E", PMIC_ID_LEN)) {
+	if (rpmh_data->resource_name) {
+		scnprintf(rpmh_resource_name, sizeof(rpmh_resource_name),
+			  "%s", rpmh_data->resource_name);
+	} else if (strnlen(pmic_id, PMIC_ID_LEN) > 1 && strnstr(pmic_id, "_E", PMIC_ID_LEN)) {
 		rsc_name = vreg_rsc_name_lookup[rpmh_data->vreg_hw_type].rsc_name_fmt;
 		scnprintf(rpmh_resource_name, sizeof(rpmh_resource_name),
 			  rsc_name, rpmh_data->index, pmic_id);
@@ -512,7 +522,7 @@ static int rpmh_regulator_init_vreg(struct rpmh_vreg *vreg, struct device *dev,
 	if (!init_data)
 		return -ENOMEM;
 
-	if (rpmh_data->hw_data->regulator_type == XOB &&
+	if (rpmh_data->hw_data->regulator_type != VRM &&
 	    init_data->constraints.min_uV &&
 	    init_data->constraints.min_uV == init_data->constraints.max_uV) {
 		vreg->rdesc.fixed_uV = init_data->constraints.min_uV;
@@ -775,6 +785,12 @@ static const struct rpmh_vreg_hw_data pmic4_lvs = {
 	.regulator_type = XOB,
 	.ops = &rpmh_regulator_xob_ops,
 	/* LVS hardware does not support voltage or mode configuration. */
+};
+
+static const struct rpmh_vreg_hw_data pmic5_pbs = {
+	.regulator_type = PBS,
+	.ops = &rpmh_regulator_xob_ops,
+	/* PBS trigger resources only support enable voting at offset 0. */
 };
 
 static const struct rpmh_vreg_hw_data pmic5_pldo = {
@@ -1531,6 +1547,9 @@ static const struct rpmh_vreg_init_data pm6450_vreg_data[] = {
 	RPMH_VREG("ldo26",  LDO,  26, &pmic5_pldo,      NULL),
 	RPMH_VREG("ldo27",  LDO,  27, &pmic5_pldo,      NULL),
 	RPMH_VREG("ldo28",  LDO,  28, &pmic5_pldo,      NULL),
+	/* PBS trigger resources sequencing the SD card rails */
+	{ .name = "pbs_sd",  .resource_name = "vrm.sd",  .hw_data = &pmic5_pbs },
+	{ .name = "pbs_px2", .resource_name = "vrm.px2", .hw_data = &pmic5_pbs },
 	{}
 };
 
