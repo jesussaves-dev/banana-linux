@@ -25,7 +25,7 @@
 #define SWRM_COMP_SW_RESET					0x008
 #define SWRM_COMP_STATUS					0x014
 #define SWRM_LINK_MANAGER_EE					0x018
-#define SWRM_EE_CPU						1
+#define SWRM_EE_CPU						0
 #define SWRM_FRM_GEN_ENABLED					BIT(0)
 #define SWRM_VERSION_1_3_0					0x01030000
 #define SWRM_VERSION_1_5_1					0x01050001
@@ -825,6 +825,10 @@ static irqreturn_t qcom_swrm_irq_handler(int irq, void *dev_id)
 			case SWRM_INTERRUPT_STATUS_CLK_STOP_FINISHED_V2:
 				break;
 			case SWRM_INTERRUPT_STATUS_EXT_CLK_STOP_WAKEUP:
+				/* Slave woke the bus during clock stop */
+				pm_runtime_get(ctrl->dev);
+				pm_runtime_mark_last_busy(ctrl->dev);
+				pm_runtime_put_autosuspend(ctrl->dev);
 				break;
 			case SWRM_INTERRUPT_STATUS_CMD_IGNORED_AND_EXEC_CONTINUED:
 				ctrl->reg_read(ctrl,
