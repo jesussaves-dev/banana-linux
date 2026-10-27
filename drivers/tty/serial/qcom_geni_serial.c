@@ -895,8 +895,21 @@ static void qcom_geni_serial_handle_rx_dma(struct uart_port *uport, bool drop)
 	u32 rx_in;
 	int ret;
 
-	if (!qcom_geni_serial_secondary_active(uport))
+	if (!qcom_geni_serial_secondary_active(uport)) {
+		if (!port->rx_dma_addr)
+			return;
+
+		geni_se_rx_dma_unprep(&port->se, port->rx_dma_addr,
+				      DMA_RX_BUF_SIZE);
+		port->rx_dma_addr = 0;
+
+		rx_in = readl(uport->membase + SE_DMA_RX_LEN_IN);
+		if (rx_in && !drop)
+			handle_rx_uart(uport, rx_in);
+
+		qcom_geni_serial_start_rx_dma(uport);
 		return;
+	}
 
 	if (!port->rx_dma_addr)
 		return;
