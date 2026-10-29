@@ -12,6 +12,7 @@
 #include <linux/firmware.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
+#include <linux/jiffies.h>
 #include <linux/minmax.h>
 #include <linux/regmap.h>
 #include <sound/soc.h>
@@ -25,6 +26,7 @@ struct aw88166 {
 	struct mutex lock;
 	struct gpio_desc *reset_gpio;
 	struct delayed_work start_work;
+	unsigned int start_tries;	/* the I2S-clock-wait retries of aw88166_start_pa() */
 	struct regmap *regmap;
 	struct aw_container *aw_cfg;
 
@@ -1081,28 +1083,52 @@ error:
 
 static void aw88166_start_pa(struct aw88166 *aw88166)
 {
-	int ret, i;
+	int ret;
 
-	for (i = 0; i < AW88166_START_RETRIES; i++) {
-		ret = aw88166_dev_start(aw88166);
-		if (ret) {
-			int fw_ret;
-
-			dev_dbg(aw88166->aw_pa->dev,
-				"aw88166_dev_start failed, cnt:%d, ret:%d\n", i, ret);
-			fw_ret = aw88166_dev_fw_update(aw88166, AW88166_DSP_FW_UPDATE_ON, true);
-			if (fw_ret) {
-				dev_dbg(aw88166->aw_pa->dev,
-					"aw88166_dev_fw_update failed, cnt:%d, ret:%d\n", i, fw_ret);
-				continue;
-			}
-		} else {
-			dev_dbg(aw88166->aw_pa->dev, "start success\n");
-			break;
-		}
+	ret = aw88166_dev_start(aw88166);
+	if (ret == 0) {
+		if (aw88166->start_tries)
+			dev_info(aw88166->aw_pa->dev,
+				 "start: the amp locked after %u I2S-clock waits\n",
+				 aw88166->start_tries);
+		aw88166->start_tries = 0;
+		return;
 	}
-	if (ret != 0)
-		dev_err(aw88166->aw_pa->dev, "start failure (%d)\n", ret);
+
+	/*
+	 * aw88166_dev_start()'s SYSST check wants CLKS_STABLE | PLLS_LOCKED -- the I2S bit and word
+	 * clocks and the PLL. This runs from DAPM's PRE_PMU, which on the SM4450 is before the backend
+	 * DAI starts toggling those clocks, so the first attempt always fails with -EPERM after
+	 * 10 x 2 ms. The old code then spent 5 retries re-uploading the whole 85 KB ACF over I2C (~2 s
+	 * each: ~12 s of blocking I2C) and still left the amp off until a later stream open happened to
+	 * line up with a running clock. The ACF is already applied by the probe, so retry the light
+	 * start sequence on a short timer instead: the amp then locks a few attempts after the first
+	 * write starts BCLK.
+	 */
+	if (ret == -EPERM && ++aw88166->start_tries < AW88166_START_CLKW_TRIES) {
+		queue_delayed_work(system_dfl_wq, &aw88166->start_work,
+				   msecs_to_jiffies(AW88166_START_CLKW_RETRY_MS));
+		return;
+	}
+
+	if (ret != -EPERM) {
+		/* Not the clocks: the amp may have lost its configuration -- reload the ACF once, as before. */
+		int fw_ret = aw88166_dev_fw_update(aw88166, AW88166_DSP_FW_UPDATE_ON, true);
+
+		if (!fw_ret)
+			ret = aw88166_dev_start(aw88166);
+	}
+
+	if (ret) {
+		unsigned int sysst = 0;
+
+		regmap_read(aw88166->aw_pa->regmap, AW88166_SYSST_REG, &sysst);
+		dev_err(aw88166->aw_pa->dev,
+			"start failure (%d) after %u clock waits, SYSST=0x%04x\n",
+			ret, aw88166->start_tries, sysst);
+	} else {
+		aw88166->start_tries = 0;
+	}
 }
 
 static void aw88166_startup_work(struct work_struct *work)
@@ -1121,6 +1147,7 @@ static void aw88166_start(struct aw88166 *aw88166, bool sync_start)
 	if (aw88166->aw_pa->fw_status != AW88166_DEV_FW_OK)
 		return;
 
+	aw88166->start_tries = 0;
 	if (aw88166->aw_pa->status == AW88166_DEV_PW_ON)
 		return;
 
