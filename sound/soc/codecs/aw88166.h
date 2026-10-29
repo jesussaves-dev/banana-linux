@@ -557,6 +557,9 @@
 #define AW88166_DEV_SYSST_CHECK_MAX		(10)
 #define AW88166_START_RETRIES			(5)
 #define AW88166_START_WORK_DELAY_MS		(0)
+/* the I2S-clock-wait retries of aw88166_start_pa(): light start attempts, without an ACF re-upload */
+#define AW88166_START_CLKW_TRIES		(100)
+#define AW88166_START_CLKW_RETRY_MS		(10)
 #define AW88166_CHIP_ID			(0x2066)
 #define AW88166_I2C_NAME			"aw88166"
 #define AW88166_ACF_FILE			"aw88166_acf.bin"
