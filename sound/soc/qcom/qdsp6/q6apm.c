@@ -125,11 +125,28 @@ static void q6apm_put_audioreach_graph(struct kref *ref)
 {
 	struct audioreach_graph *graph;
 	struct q6apm *apm;
+	unsigned long t0;
+	unsigned int ms;
+	int ret;
 
 	graph = container_of(ref, struct audioreach_graph, refcount);
 	apm = graph->apm;
 
-	audioreach_graph_mgmt_cmd(graph, APM_CMD_GRAPH_CLOSE);
+	/*
+	 * The graph is torn down by the ADSP: audioreach_graph_mgmt_cmd() waits for the DSP's
+	 * APM_CMD_GRAPH_CLOSE response (audioreach_send_cmd_sync(), 5 s). That result was thrown
+	 * away, so a close the DSP never acknowledged -- the very state a frontend opened right
+	 * afterwards sees as a half-built graph (the amps then fail to start) -- was silent.
+	 */
+	t0 = jiffies;
+	ret = audioreach_graph_mgmt_cmd(graph, APM_CMD_GRAPH_CLOSE);
+	ms = jiffies_to_msecs(jiffies - t0);
+	if (ret)
+		dev_err(apm->dev, "graph %d: close failed (%d) after %u ms\n", graph->id, ret, ms);
+	else if (ms >= 50)
+		dev_info(apm->dev, "graph %d: close took %u ms\n", graph->id, ms);
+	else
+		dev_dbg(apm->dev, "graph %d: closed after %u ms\n", graph->id, ms);
 
 	mutex_lock(&apm->lock);
 	graph = idr_remove(&apm->graph_idr, graph->id);
