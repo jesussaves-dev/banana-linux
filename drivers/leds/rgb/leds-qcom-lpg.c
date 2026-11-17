@@ -243,6 +243,7 @@ struct lpg_data {
 	unsigned int triled_base;
 	bool triled_has_atc_ctl;
 	bool triled_has_src_sel;
+	unsigned int hi_res_clk_count;	/* usable hi-res clock sources, 0 = all */
 	int num_channels;
 	const struct lpg_channel_data *channels;
 };
@@ -452,6 +453,8 @@ static int lpg_calc_freq(struct lpg_channel *chan, uint64_t period)
 	if (chan->subtype == LPG_SUBTYPE_HI_RES_PWM) {
 		clk_rate_arr = lpg_clk_rates_hi_res;
 		clk_len = ARRAY_SIZE(lpg_clk_rates_hi_res);
+		if (chan->lpg->data->hi_res_clk_count)
+			clk_len = chan->lpg->data->hi_res_clk_count;
 		pwm_resolution_arr = lpg_pwm_resolution_hi_res;
 		pwm_resolution_count = ARRAY_SIZE(lpg_pwm_resolution_hi_res);
 		max_res = LPG_RESOLUTION_15BIT;
@@ -1812,6 +1815,8 @@ static const struct lpg_data pm8350c_pwm_data = {
 };
 
 static const struct lpg_data pm6450_pwm_data = {
+	/* no 76.8 MHz source: the downstream driver stops at 19.2 MHz and the channel is dead on it */
+	.hi_res_clk_count = 4,
 	.num_channels = 1,
 	.channels = (const struct lpg_channel_data[]) {
 		{ .base = 0xe800 },
