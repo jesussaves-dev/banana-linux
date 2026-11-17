@@ -387,6 +387,17 @@ config JOYSTICK_RSINPUT
 	tristate "UART Based gamepad driver that found in AYN and Retroid Pocket products"
 	depends on SERIAL_DEV_BUS
 
+config JOYSTICK_BANANA_PAD
+	tristate "Banana pad UART gamepad MCU (clean-room driver)"
+	depends on SERIAL_DEV_BUS
+	help
+	  Driver for the serial gamepad MCU found in AYN and Retroid Pocket
+	  handhelds, matched by the "banana,pad" devicetree compatible. It
+	  can coexist with JOYSTICK_RSINPUT; the devicetree picks one.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called banana-pad.
+
 config JOYSTICK_FSIA6B
 	tristate "FlySky FS-iA6B RC Receiver"
 	select SERIO
