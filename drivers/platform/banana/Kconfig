@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0-only
+menuconfig BANANA_PLATFORM
+	bool "Banana Pocket platform drivers"
+	depends on ARM64 || COMPILE_TEST
+	help
+	  Board-level drivers for the Banana Pocket handheld.
+
+if BANANA_PLATFORM
+
+config BANANA_POCKET
+	tristate "Banana Pocket board driver"
+	depends on OF
+	help
+	  Exposes the board identity (model, board name, board id and kernel
+	  version) under /sys/devices/platform/banana-pocket/, so userspace
+	  does not have to parse /proc/device-tree. Binds to a
+	  "banana,pocket" node in the device tree.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called banana-pocket.
+
+endif # BANANA_PLATFORM
