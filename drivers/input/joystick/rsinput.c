@@ -16,7 +16,6 @@
 #include <linux/of.h>
 #include <linux/regulator/consumer.h>
 #include <linux/serdev.h>
-#include <linux/workqueue.h>
 #include <linux/slab.h>
 #include <uapi/linux/sched/types.h>
 
@@ -496,8 +495,10 @@ static int rsinput_probe(struct serdev_device *serdev) {
     }
 
     error = serdev_device_open(serdev);
-    if (error)
+    if (error) {
+        regulator_disable(drv->vdd);
         return dev_err_probe(&serdev->dev, error, "Unable to open UART device\n");
+    }
 
     drv->serdev = serdev;
     drv->sequence_number = 0;
@@ -505,14 +506,18 @@ static int rsinput_probe(struct serdev_device *serdev) {
     serdev_device_set_drvdata(serdev, drv);
 
     error = serdev_device_set_baudrate(serdev, 115200);
-    if (error < 0)
-        return dev_err_probe(&serdev->dev, error, "Failed to set up host baud rate\n");
+    if (error < 0) {
+        dev_err_probe(&serdev->dev, error, "Failed to set up host baud rate\n");
+        goto err_close;
+    }
 
     serdev_device_set_flow_control(serdev, false);
 
     drv->input = devm_input_allocate_device(&serdev->dev);
-    if (!drv->input)
-        return -ENOMEM;
+    if (!drv->input) {
+        error = -ENOMEM;
+        goto err_close;
+    }
 
     drv->input->phys = "rsinput-gamepad/input0";
 
@@ -563,17 +568,20 @@ static int rsinput_probe(struct serdev_device *serdev) {
 
     error = input_register_device(drv->input);
     if (error)
-        return error;
+        goto err_close;
 
     serdev_device_set_client_ops(serdev, &rsinput_rx_ops);
 
     error = rsinput_init_commands(drv);
-    if (error < 0) {
-        serdev_device_close(serdev);
-        return error;
-    }
+    if (error < 0)
+        goto err_close;
 
     return 0;
+
+err_close:
+    serdev_device_close(serdev);
+    regulator_disable(drv->vdd);
+    return error;
 }
 
 static void rsinput_remove(struct serdev_device *serdev) {
