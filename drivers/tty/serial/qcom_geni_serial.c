@@ -2114,9 +2114,12 @@ static int qcom_geni_serial_suspend(struct device *dev)
 		geni_icc_set_bw(&port->se);
 	}
 
+	disable_irq(uport->irq);
 	ret = uart_suspend_port(private_data->drv, uport);
-	if (ret)
+	if (ret) {
+		enable_irq(uport->irq);
 		return ret;
+	}
 
 	/*
 	 * When no_console_suspend is set the console must remain active
@@ -2125,7 +2128,11 @@ static int qcom_geni_serial_suspend(struct device *dev)
 	if (!console_suspend_enabled && uart_console(uport))
 		return 0;
 
-	return pm_runtime_force_suspend(dev);
+	ret = pm_runtime_force_suspend(dev);
+	if (ret)
+		enable_irq(uport->irq);
+
+	return ret;
 }
 
 static int qcom_geni_serial_resume(struct device *dev)
@@ -2137,11 +2144,15 @@ static int qcom_geni_serial_resume(struct device *dev)
 
 	if (console_suspend_enabled || !uart_console(uport)) {
 		ret = pm_runtime_force_resume(dev);
-		if (ret)
+		if (ret) {
+			enable_irq(uport->irq);
 			return ret;
+		}
 	}
 
 	ret = uart_resume_port(private_data->drv, uport);
+
+	enable_irq(uport->irq);
 	if (uart_console(uport)) {
 		geni_icc_set_tag(&port->se, QCOM_ICC_TAG_ALWAYS);
 		geni_icc_set_bw(&port->se);
